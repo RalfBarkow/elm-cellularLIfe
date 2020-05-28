@@ -7,24 +7,24 @@ module Main exposing (main)
 -}
 
 import Browser
+import CellGrid.Render
 import Element exposing (..)
-import Element.Font as Font
 import Element.Background as Background
+import Element.Font as Font
 import Element.Input as Input
-import Html exposing (Html)
 import Engine
 import EngineData
-import CellGrid.Render
-import State exposing(State)
-import Random
-import Time
-import Style
-import String.Interpolate exposing(interpolate)
-import Report
-import Organism
+import Html exposing (Html)
 import Markdown.Elm
-import Markdown.Option exposing(..)
+import Markdown.Option exposing (..)
+import Organism
+import Random
+import Report
+import State exposing (State)
+import String.Interpolate exposing (interpolate)
 import Strings
+import Style
+import Time
 
 
 main =
@@ -44,7 +44,11 @@ type alias Model =
     , appState : AppState
     }
 
-type AppState = Running | Paused
+
+type AppState
+    = Running
+    | Paused
+
 
 type Msg
     = NoOp
@@ -63,7 +67,7 @@ init flags =
     ( { input = "App started"
       , output = "App started"
       , counter = 0
-      , state = (State.initialState (Random.initialSeed 400) )
+      , state = State.initialState (Random.initialSeed 400)
       , appState = Paused
       }
     , Cmd.none
@@ -71,7 +75,7 @@ init flags =
 
 
 subscriptions model =
-    Time.every EngineData.config.tickLoopInterval  Tick
+    Time.every EngineData.config.tickLoopInterval Tick
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -80,25 +84,34 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
-        CellGrid msg_ ->
-            ( model, Cmd.none)
+        CellGrid _ ->
+            ( model, Cmd.none )
 
         Tick _ ->
-          case model.appState of
-              Running ->
-                ({model | counter = model.counter + 1
-                  , state = Engine.nextState model.state }, Cmd.none)
-              Paused -> (model, Cmd.none)
+            case model.appState of
+                Running ->
+                    ( { model
+                        | counter = model.counter + 1
+                        , state = Engine.nextState model.state
+                      }
+                    , Cmd.none
+                    )
+
+                Paused ->
+                    ( model, Cmd.none )
 
         SetAppState appState ->
-            ({ model | appState = appState}, Cmd.none)
+            ( { model | appState = appState }, Cmd.none )
 
         Reset ->
-            ( { model | state = State.initialState (model.state.seed)
-                      , counter = 0
-                      , appState = Paused
+            ( { model
+                | state = State.initialState model.state.seed
+                , counter = 0
+                , appState = Paused
               }
-              , Cmd.none)
+            , Cmd.none
+            )
+
 
 
 --
@@ -114,48 +127,60 @@ view model =
 mainColumn : Model -> Element Msg
 mainColumn model =
     column Style.mainColumn
-            [ title "Microbial Life I"
-            , display model
-            ]
+        [ title "Microbial Life I"
+        , display model
+        ]
+
 
 display : Model -> Element Msg
 display model =
-    row [ spacing 10, centerX] [lhs model, rhs model, textColumn]
+    row [ spacing 10, centerX ] [ lhs model, rhs model, textColumn ]
 
-displayDashboard  model =
-    row [Font.size 14, spacing 15, centerX, Background.color Style.mediumColor, width (px (round EngineData.config.renderWidth)), height (px 30)] [
-      el [Font.family [Font.typeface "Courier"]] (text <| clock model)
-      ]
+
+displayDashboard model =
+    row [ Font.size 14, spacing 15, centerX, Background.color Style.mediumColor, width (px (round EngineData.config.renderWidth)), height (px 30) ]
+        [ el [ Font.family [ Font.typeface "Courier" ] ] (text <| clock model)
+        ]
+
 
 clock : Model -> String
-clock  model =
+clock model =
     let
-        kString = model.counter |> (\x -> x + 1) |> String.fromInt
-        population = List.length model.state.organisms |> String.fromInt
-        averageAge = Report.averageAge model.state.organisms |> String.fromFloat
-        density = Organism.maximumPopulationDensity 3 model.state.organisms |> String.fromFloat |> String.padLeft 4 ' '
+        kString =
+            model.counter |> (\x -> x + 1) |> String.fromInt
 
+        population =
+            List.length model.state.organisms |> String.fromInt
+
+        averageAge =
+            Report.averageAge model.state.organisms |> String.fromFloat
+
+        density =
+            Organism.maximumPopulationDensity 3 model.state.organisms |> String.fromFloat |> String.padLeft 4 ' '
     in
-    interpolate " t = {0}, population = {1}, average age = {2}, density = {3}" [kString, population, averageAge, density]
-
+    interpolate " t = {0}, population = {1}, average age = {2}, density = {3}" [ kString, population, averageAge, density ]
 
 
 lhs model =
-    column [] [
-        row [ ] [
-           Engine.render
-             model.state
-             |> Element.html |> Element.map CellGrid
-         ]
-       , displayDashboard model
-    ]
-
-rhs model = column [padding 10, spacing 10, Style.mediumBackground, height fill, width (px 150)]
-              [runButton model, pauseButton model, resetButton model]
+    column []
+        [ row []
+            [ Engine.render
+                model.state
+                |> Element.html
+                |> Element.map CellGrid
+            ]
+        , displayDashboard model
+        ]
 
 
-textColumn = column [padding 10, spacing 10, Style.paper, height fill, width (px 400), scrollbarY, Font.size 12]
-                           [Markdown.Elm.toHtml ExtendedMath Strings.text |> Element.html]
+rhs model =
+    column [ padding 10, spacing 10, Style.mediumBackground, height fill, width (px 150) ]
+        [ runButton model, pauseButton model, resetButton model ]
+
+
+textColumn =
+    column [ padding 10, spacing 10, Style.paper, height fill, width (px 400), scrollbarY, Font.size 12 ]
+        [ Markdown.Elm.toHtml ExtendedMath Strings.text |> Element.html ]
 
 
 title : String -> Element msg
@@ -170,20 +195,23 @@ title str =
 pauseButton : Model -> Element Msg
 pauseButton model =
     row [ centerX ]
-        [ Input.button (Style.button 100 [Style.colorIfSelected Paused model.appState])
+        [ Input.button (Style.button 100 [ Style.colorIfSelected Paused model.appState ])
             { onPress = Just (SetAppState Paused)
             , label = el [ centerX, centerY ] (text "Pause")
             }
         ]
 
+
 runButton : Model -> Element Msg
 runButton model =
     row [ centerX ]
-        [ Input.button (Style.button 100 [Style.colorIfSelected Running model.appState])
+        [ Input.button (Style.button 100 [ Style.colorIfSelected Running model.appState ])
             { onPress = Just (SetAppState Running)
             , label = el [ centerX, centerY ] (text "Run")
             }
         ]
+
+
 resetButton : Model -> Element Msg
 resetButton model =
     row [ centerX ]
